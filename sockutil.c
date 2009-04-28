@@ -32,9 +32,8 @@ inline static int _build_un(const char *bindPath, struct sockaddr_un *servAddrPt
 }
 
 
-int sockutil_bind(const char *bindPath, int backlog) {
+int sockutil_bind(const char *bindPath, int backlog, sau_t *sa) {
   int fd, servLen;
-  sau_t sa;  
   bool tcp = false;
   unsigned long tcp_ia = 0;
   char *tp;
@@ -91,21 +90,21 @@ int sockutil_bind(const char *bindPath, int backlog) {
   
   // Bind the listening socket.
   if(tcp) {
-    memset((char *) &sa.in, 0, sizeof(sa.in));
-    sa.in.sin_family = AF_INET;
-    sa.in.sin_addr.s_addr = tcp_ia;
-    sa.in.sin_port = htons(port);
-    servLen = sizeof(sa.in);
+    memset((char *)&sa->in, 0, sizeof(sa->in));
+    sa->in.sin_family = AF_INET;
+    sa->in.sin_addr.s_addr = tcp_ia;
+    sa->in.sin_port = htons(port);
+    servLen = sizeof(sa->in);
   }
   else {
     unlink(bindPath);
-    if(_build_un(bindPath, &sa.un, &servLen)) {
+    if(_build_un(bindPath, &sa->un, &servLen)) {
       warn("fcgiev: listening socket's path name is too long.");
       return -1;
     }
   }
   
-  if(bind(fd, (struct sockaddr *) &sa.un, servLen) < 0) {
+  if(bind(fd, (struct sockaddr *) &sa->un, servLen) < 0) {
     perror("fcgiev: bind");
     return -1;
   }

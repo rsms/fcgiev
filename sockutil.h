@@ -9,6 +9,6 @@ typedef union {
   struct sockaddr_in in;
 } sau_t;
 
-int sockutil_bind(const char *bindPath, int backlog);
+int sockutil_bind(const char *bindPath, int backlog, sau_t *sa);
 
 #endif

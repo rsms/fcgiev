@@ -468,10 +468,11 @@ void server_init(server_t *server) {
 }
 
 
-bool server_bind(server_t *server, const char *addrorpath) {
-  if ((server->ev.ev_fd = sockutil_bind(addrorpath, SOMAXCONN)) < 0)
-    return false;
-  return true;
+const sau_t *server_bind(server_t *server, const char *addrorpath) {
+  static sau_t sa;
+  if ((server->ev.ev_fd = sockutil_bind(addrorpath, SOMAXCONN, &sa)) < 0)
+    return NULL;
+  return (const sau_t *)(&sa);
 }
 
 
@@ -506,13 +507,12 @@ void server_accept(int fd, short ev, server_t *server) {
 }
 
 
-void server_run(server_t *server) {
+void server_enable(server_t *server) {
   int on = 1;
   AZ(ioctl(server->ev.ev_fd, FIONBIO, (int *)&on));
   event_set(&server->ev, server->ev.ev_fd, EV_READ|EV_PERSIST,
     (void (*)(int,short,void*))server_accept, (void *)server);
   event_add(&server->ev, NULL/* no timeout */);
-  event_dispatch();
 }
 
 
@@ -550,19 +550,33 @@ void app_handle_requestaborted(request_t *r) {
 
 
 int main(int argc, const char * const *argv) {
-  server_t server;
+  server_t *server;
+  int i;
   
+  // initialize libraries
   event_init();
   fcgiev_init();
   
-  server_init(&server);
-  
-  if (argc > 1) {
-    server_bind(&server, argv[1]);
-    printf("listening on %s\n", argv[1]);
+  // no argmuents: bind to stdin
+  if (argc <= 1) {
+    server = calloc(1,sizeof(server_t));
+    server_init(server);
+    server_enable(server);
+  }
+  // bind with every argument
+  else {
+    for (i=1; i<argc; i++) {
+      server = calloc(1,sizeof(server_t));
+      server_init(server);
+      if (server_bind(server, argv[i]) == NULL)
+        err(1, "server_bind");
+      printf("listening on %s\n", argv[i]);
+      server_enable(server);
+    }
   }
   
-  server_run(&server);
+  // enter runloop
+  event_dispatch();
   
   return 0;
 }
