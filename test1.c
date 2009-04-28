@@ -549,14 +549,19 @@ void app_handle_requestaborted(request_t *r) {
 }
 
 
-int main(void) {
+int main(int argc, const char * const *argv) {
   server_t server;
   
   event_init();
   fcgiev_init();
   
   server_init(&server);
-  server_bind(&server, "127.0.0.1:5000");
+  
+  if (argc > 1) {
+    server_bind(&server, argv[1]);
+    printf("listening on %s\n", argv[1]);
+  }
+  
   server_run(&server);
   
   return 0;
