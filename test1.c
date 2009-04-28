@@ -403,8 +403,8 @@ void fcgiproto_readcb(struct bufferevent *bev, request_t *r) {
       return;
     
     // Process the message.
-    printf("fcgiproto>> received message: id: %d, bodylen: %d, type: %d\n",
-      msg_id, msg_len, (int)hp->type);
+    printf("fcgiproto>> received message: id: %d, bodylen: %d, padding: %d, type: %d\n",
+      msg_id, msg_len, hp->paddingLength, (int)hp->type);
     
     switch (hp->type) {
       case TYPE_BEGIN_REQUEST:
@@ -580,3 +580,4 @@ int main(int argc, const char * const *argv) {
   
   return 0;
 }
+// gcc -o test1 -L/opt/local/lib -I/opt/local/include -levent test1.c sockutil.c
