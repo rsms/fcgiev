@@ -192,13 +192,11 @@ inline static request_t *request_get(uint16_t id) {
     r = (request_t *)calloc(1, sizeof(request_t));
     _requests[id] = r;
   }
-  printf("** get req %p\n", r);
   return r;
 }
 
 // restore a request object
 inline static void request_put(request_t *r) {
-  printf("** put req %p\n", r);
   r->bev->cbarg = NULL;
   r->bev = NULL;
 }
@@ -234,8 +232,6 @@ void request_end(request_t *r, uint32_t appstatus, uint8_t protostatus) {
   end_request_init((end_request_t *)p, r->id, appstatus, protostatus);
   p += sizeof(end_request_t);
   
-  printf("sending END_REQUEST for id %d\n", r->id);
-  
   bufferevent_write(r->bev, (const void *)buf, sizeof(buf));
   
   r->terminate = true;
@@ -248,13 +244,6 @@ void app_handle_requestaborted(request_t *r);
 
 
 void fcgiproto_errorcb(struct bufferevent *bev, short what, request_t *r) {
-  if (what & EVBUFFER_EOF)
-    printf("request %p EOF\n", r);
-  else if (what & EVBUFFER_TIMEOUT)
-    printf("request %p timeout\n", r);
-  else
-    printf("request %p error\n", r);
-  
   bev_close(bev);
   if (r)
     request_put(r);
@@ -262,7 +251,6 @@ void fcgiproto_errorcb(struct bufferevent *bev, short what, request_t *r) {
 
 
 inline static void process_unknown(struct bufferevent *bev, uint8_t type, uint16_t len) {
-  printf("process_unknown(%p, %d, %d)\n", bev, type, len);
   unknown_type_t msg;
   unknown_type_init(&msg, type);
   bufferevent_write(bev, (const void *)&msg, sizeof(unknown_type_t));
@@ -348,7 +336,6 @@ inline static void process_params(struct bufferevent *bev, uint16_t id, const ui
     buf += name_len;
     strncpy(v, (const char *)buf, data_len); v[data_len] = '\0';
     buf += data_len;
-    printf("fcgiproto>> param>> '%s' => '%s'\n", k, v);
     // todo: req->second->params[name] = data;
   }
   
@@ -382,7 +369,6 @@ inline static void process_stdin(struct bufferevent *bev, uint16_t id, const uin
 
 
 void fcgiproto_readcb(struct bufferevent *bev, request_t *r) {
-  printf("fcgiproto_readcb(%p, %p)\n", bev, r);
   //bufferevent_write_buffer(bev, bev->input);
   
   while(EVBUFFER_LENGTH(bev->input) >= sizeof(header_t)) {
@@ -403,10 +389,6 @@ void fcgiproto_readcb(struct bufferevent *bev, request_t *r) {
     
     if (EVBUFFER_LENGTH(bev->input) < sizeof(header_t) + msg_len + hp->paddingLength)
       return;
-    
-    // Process the message.
-    printf("fcgiproto>> received message: id: %d, bodylen: %d, padding: %d, type: %d\n",
-      msg_id, msg_len, hp->paddingLength, (int)hp->type);
     
     switch (hp->type) {
       case TYPE_BEGIN_REQUEST:
@@ -439,13 +421,11 @@ void fcgiproto_readcb(struct bufferevent *bev, request_t *r) {
 
 void fcgiproto_writecb(struct bufferevent *bev, request_t *r) {
   // Invoked if bev->output is drained or below the low watermark.
-  printf("fcgiproto_writecb(%p, %p)\n", bev, r);
   
   if (r != NULL && r->terminate) {
     bev_disable(r->bev);
     bev_drain(r->bev);
     if (r->keepconn == false) {
-      printf("fcgiproto_writecb: closing connection\n");
       bev_close(r->bev);
     }
     request_put(r);
@@ -524,7 +504,6 @@ void fcgiev_init() {
 
 
 void app_handle_beginrequest(request_t *r) {
-  printf("app_handle_beginrequest %p\n", r);
   
   if (r->role != ROLE_RESPONDER) {
     request_write(r, "We can't handle any role but RESPONDER.", 39, 0);
@@ -540,14 +519,12 @@ void app_handle_beginrequest(request_t *r) {
 
 
 void app_handle_input(request_t *r, uint16_t length) {
-  printf("app_handle_input %p -- %d bytes\n", r, length);
   // simply drain it for now
   evbuffer_drain(r->bev->input, length);
 }
 
 
 void app_handle_requestaborted(request_t *r) {
-  printf("app_handle_requestaborted %p\n", r);
 }
 
 

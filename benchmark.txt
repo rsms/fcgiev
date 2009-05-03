@@ -1,0 +1,8 @@
+Raw performance, single backend, 50 concurrent requests
+
+fcgiev + lighttpd 1.4       4118.98
+smisk core + lighttpd 1.4   4520.39
+eventlet + lighttpd 1.4     1873.50
+eventlet                    2157.75
+
+
