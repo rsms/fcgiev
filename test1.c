@@ -234,6 +234,8 @@ void request_end(request_t *r, uint32_t appstatus, uint8_t protostatus) {
   end_request_init((end_request_t *)p, r->id, appstatus, protostatus);
   p += sizeof(end_request_t);
   
+  printf("sending END_REQUEST for id %d\n", r->id);
+  
   bufferevent_write(r->bev, (const void *)buf, sizeof(buf));
   
   r->terminate = true;
@@ -581,3 +583,4 @@ int main(int argc, const char * const *argv) {
   return 0;
 }
 // gcc -o test1 -L/opt/local/lib -I/opt/local/include -levent test1.c sockutil.c
+// -finline-functions -ffast-math -funroll-all-loops -ftree -msse3
