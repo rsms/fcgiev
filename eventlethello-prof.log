@@ -1,0 +1,199 @@
+# py -c 'import sys,pstats;pstats.Stats("eventlethello.prof").strip_dirs().sort_stats("cumulative").print_stats()' | mate
+
+Mon May  4 23:20:16 2009    eventlethello.prof
+
+         1871962 function calls (1816583 primitive calls) in 44.689 CPU seconds
+
+   Ordered by: cumulative time
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+5003/5002    0.021    0.000   44.901    0.009 wrappedfd.py:161(accept)
+     21/4    0.000    0.000   44.680   11.170 api.py:117(trampoline)
+       18   41.732    2.318   41.732    2.318 {built-in method poll}
+      2/1    0.000    0.000   11.215   11.215 <string>:1(<module>)
+      2/1    0.000    0.000   11.215   11.215 eventlethello.py:22(main)
+      2/1    0.000    0.000   11.215   11.215 httpd.py:564(server)
+     5004    0.006    0.000    8.289    0.002 pollhub.py:145(wait)
+        1    0.000    0.000    8.266    8.266 runloop.py:77(run)
+     5001    0.066    0.000    2.117    0.000 api.py:227(sleep)
+5008/4989    0.015    0.000    1.598    0.000 coros.py:477(_safe_apply)
+5008/4989    0.106    0.000    1.583    0.000 httpd.py:442(handle)
+     5001    0.012    0.000    0.473    0.000 eventlethello.py:10(handle_request)
+     5001    0.058    0.000    0.418    0.000 BaseHTTPServer.py:219(parse_request)
+     5001    0.011    0.000    0.417    0.000 httpd.py:185(write)
+     5001    0.026    0.000    0.405    0.000 httpd.py:201(_write_bytes)
+     5001    0.026    0.000    0.338    0.000 mimetools.py:15(__init__)
+    40129    0.060    0.000    0.303    0.000 greenlib.py:254(_greenlet_context_call)
+10009/10002    0.042    0.000    0.286    0.000 timer.py:73(__call__)
+5013/5004    0.053    0.000    0.283    0.000 runloop.py:201(fire_timers)
+     5001    0.119    0.000    0.249    0.000 httpd.py:142(begin_response)
+     5001    0.010    0.000    0.249    0.000 rfc822.py:84(__init__)
+     5001    0.103    0.000    0.239    0.000 rfc822.py:118(readheaders)
+     5002    0.038    0.000    0.198    0.000 wrappedfd.py:140(close)
+    40129    0.075    0.000    0.189    0.000 greenlib.py:246(_greenlet_context)
+25013/24946    0.032    0.000    0.185    0.000 wrappedfd.py:229(readline)
+    15004    0.029    0.000    0.182    0.000 pollhub.py:55(schedule_call)
+25013/24946    0.073    0.000    0.153    0.000 wrappedfd.py:199(readuntil)
+    15004    0.049    0.000    0.153    0.000 runloop.py:183(schedule_call)
+5009/5001    0.005    0.000    0.150    0.000 coros.py:550(execute_async)
+5009/5001    0.013    0.000    0.145    0.000 coros.py:497(_execute)
+     5006    0.005    0.000    0.131    0.000 util.py:158(socket_accept)
+     5006    0.023    0.000    0.126    0.000 socket.py:171(accept)
+     5002    0.024    0.000    0.121    0.000 socket.py:164(close)
+     5001    0.004    0.000    0.117    0.000 wrappedfd.py:196(write)
+     5001    0.010    0.000    0.113    0.000 wrappedfd.py:189(sendall)
+    40129    0.103    0.000    0.108    0.000 greenlib.py:235(greenlet_dict)
+    60024    0.107    0.000    0.107    0.000 {setattr}
+     4987    0.013    0.000    0.106    0.000 coros.py:226(_do_send)
+     5001    0.010    0.000    0.101    0.000 wrappedfd.py:57(send)
+     9990    0.027    0.000    0.096    0.000 coros.py:193(send)
+     5001    0.006    0.000    0.092    0.000 util.py:166(socket_send)
+     5002    0.010    0.000    0.086    0.000 api.py:177(exc_after)
+     5001    0.086    0.000    0.086    0.000 {method 'send' of '_socket.socket' objects}
+     5002    0.014    0.000    0.075    0.000 api.py:162(call_after)
+    15004    0.048    0.000    0.070    0.000 runloop.py:165(add_timer)
+    10008    0.020    0.000    0.070    0.000 runloop.py:176(prepare_timers)
+    70161    0.063    0.000    0.063    0.000 {getattr}
+    15003    0.031    0.000    0.062    0.000 httpd.py:239(get_header)
+     5001    0.052    0.000    0.062    0.000 BaseHTTPServer.py:439(date_time_string)
+5002/4990    0.013    0.000    0.059    0.000 wrappedfd.py:34(recv)
+     5006    0.054    0.000    0.054    0.000 {method 'accept' of '_socket.socket' objects}
+    15004    0.050    0.000    0.050    0.000 {_bisect.insort_right}
+     5002    0.030    0.000    0.050    0.000 socket.py:157(__init__)
+     5001    0.015    0.000    0.048    0.000 coros.py:526(put)
+    30006    0.033    0.000    0.048    0.000 rfc822.py:281(getheader)
+     5001    0.030    0.000    0.043    0.000 mimetools.py:24(parsetype)
+     5001    0.015    0.000    0.043    0.000 httpd.py:224(path_segments)
+5009/5001    0.014    0.000    0.040    0.000 coros.py:519(get)
+     5017    0.006    0.000    0.037    0.000 util.py:186(socket_recv)
+     5002    0.008    0.000    0.036    0.000 util.py:243(set_nonblocking)
+     5001    0.010    0.000    0.036    0.000 httpd.py:343(read_body)
+    15002    0.024    0.000    0.031    0.000 httpd.py:301(set_header)
+     5017    0.031    0.000    0.031    0.000 {method 'recv' of '_socket.socket' objects}
+    15004    0.030    0.000    0.030    0.000 timer.py:33(__init__)
+    50009    0.030    0.000    0.030    0.000 {method 'split' of 'str' objects}
+     5002    0.030    0.000    0.030    0.000 pollhub.py:79(exc_descriptor)
+     5002    0.023    0.000    0.029    0.000 wrappedfd.py:86(__init__)
+     5001    0.027    0.000    0.029    0.000 httpd.py:556(write_access_log_line)
+    15003    0.019    0.000    0.028    0.000 rfc822.py:193(isheader)
+     5002    0.027    0.000    0.027    0.000 <string>:1(setblocking)
+    25025    0.026    0.000    0.026    0.000 {hasattr}
+   115020    0.025    0.000    0.025    0.000 {method 'lower' of 'str' objects}
+     5001    0.007    0.000    0.025    0.000 urllib.py:1164(unquote_plus)
+     5001    0.023    0.000    0.023    0.000 {time.strftime}
+     5001    0.011    0.000    0.021    0.000 coros.py:354(dec)
+    40033    0.018    0.000    0.021    0.000 api.py:215(get_hub)
+    10004    0.019    0.000    0.021    0.000 coros.py:74(reset)
+     5001    0.020    0.000    0.021    0.000 httpd.py:79(__init__)
+    20071    0.021    0.000    0.021    0.000 {sys.exc_clear}
+    45010    0.020    0.000    0.020    0.000 {method 'find' of 'str' objects}
+     5001    0.009    0.000    0.020    0.000 coros.py:341(inc)
+     5001    0.012    0.000    0.019    0.000 httpd.py:414(__init__)
+   110026    0.018    0.000    0.018    0.000 {len}
+    15004    0.014    0.000    0.017    0.000 runloop.py:161(_add_absolute_timer)
+     5016    0.006    0.000    0.016    0.000 coros.py:70(__init__)
+     5004    0.013    0.000    0.016    0.000 pollhub.py:105(process_queue)
+   115297    0.016    0.000    0.016    0.000 {greenlet.getcurrent}
+    10002    0.015    0.000    0.015    0.000 httpd.py:421(set_response_code)
+     5001    0.012    0.000    0.015    0.000 urllib.py:1151(unquote)
+    10002    0.014    0.000    0.014    0.000 runloop.py:221(cancel_timers)
+    60095    0.014    0.000    0.014    0.000 {method 'get' of 'dict' objects}
+    60012    0.013    0.000    0.013    0.000 {method 'append' of 'list' objects}
+     5001    0.013    0.000    0.013    0.000 httpd.py:430(generate_status_line)
+     5001    0.011    0.000    0.012    0.000 pools.py:96(put)
+    50018    0.012    0.000    0.012    0.000 {time.time}
+    40007    0.012    0.000    0.012    0.000 {method 'join' of 'str' objects}
+    25058    0.011    0.000    0.011    0.000 {isinstance}
+     5004    0.009    0.000    0.009    0.000 {_bisect.bisect_right}
+     5001    0.009    0.000    0.009    0.000 {time.gmtime}
+     5001    0.007    0.000    0.008    0.000 pools.py:116(free)
+    20004    0.008    0.000    0.008    0.000 rfc822.py:205(islast)
+5009/5001    0.005    0.000    0.007    0.000 pools.py:86(get)
+    25004    0.006    0.000    0.006    0.000 {method 'capitalize' of 'str' objects}
+    25005    0.006    0.000    0.006    0.000 {method 'strip' of 'str' objects}
+    24994    0.006    0.000    0.006    0.000 {method 'pop' of 'dict' objects}
+     5001    0.005    0.000    0.005    0.000 BaseHTTPServer.py:435(version_string)
+     5002    0.005    0.000    0.005    0.000 wrappedfd.py:74(decrement)
+    15003    0.005    0.000    0.005    0.000 httpd.py:236(get_headers)
+    20004    0.005    0.000    0.005    0.000 rfc822.py:215(iscomment)
+     5001    0.004    0.000    0.004    0.000 mimetools.py:41(parseplist)
+     5004    0.004    0.000    0.004    0.000 runloop.py:71(sleep_until)
+     5002    0.004    0.000    0.004    0.000 timer.py:79(cancel)
+     5023    0.003    0.000    0.003    0.000 <string>:1(fileno)
+     5018    0.003    0.000    0.003    0.000 runloop.py:148(fire_observers)
+        1    0.000    0.000    0.003    0.003 coros.py:423(__init__)
+        1    0.000    0.000    0.003    0.003 coros.py:335(__init__)
+        1    0.000    0.000    0.003    0.003 api.py:205(use_hub)
+        1    0.001    0.001    0.003    0.003 api.py:183(get_default_hub)
+     5001    0.003    0.000    0.003    0.000 {range}
+     5001    0.003    0.000    0.003    0.000 {method 'items' of 'dict' objects}
+     5001    0.003    0.000    0.003    0.000 {method 'replace' of 'str' objects}
+     5002    0.002    0.000    0.002    0.000 wrappedfd.py:68(__init__)
+     4987    0.002    0.000    0.002    0.000 {method 'keys' of 'dict' objects}
+     5001    0.002    0.000    0.002    0.000 {method 'startswith' of 'str' objects}
+     5002    0.002    0.000    0.002    0.000 wrappedfd.py:78(is_referenced)
+        1    0.000    0.000    0.002    0.002 pollhub.py:24(<module>)
+     4987    0.002    0.000    0.002    0.000 {method 'pop' of 'list' objects}
+     5001    0.002    0.000    0.002    0.000 httpd.py:384(response_written)
+        1    0.001    0.001    0.001    0.001 runloop.py:28(<module>)
+     5004    0.001    0.000    0.001    0.000 {method 'iteritems' of 'dict' objects}
+     5003    0.001    0.000    0.001    0.000 eventlethello.py:24(write)
+     5001    0.001    0.000    0.001    0.000 {method 'has_key' of 'dict' objects}
+     5001    0.001    0.000    0.001    0.000 {method 'append' of 'collections.deque' objects}
+     5004    0.001    0.000    0.001    0.000 {method 'clear' of 'dict' objects}
+     4987    0.001    0.000    0.001    0.000 {method 'popleft' of 'collections.deque' objects}
+        1    0.000    0.000    0.001    0.001 api.py:47(tcp_listener)
+        1    0.001    0.001    0.001    0.001 bisect.py:1(<module>)
+        1    0.001    0.001    0.001    0.001 kqueuehub.py:23(<module>)
+       14    0.000    0.000    0.001    0.000 coros.py:508(create)
+       19    0.000    0.000    0.000    0.000 api.py:128(cb)
+    21/14    0.000    0.000    0.000    0.000 api.py:147(_spawn)
+       14    0.000    0.000    0.000    0.000 api.py:152(spawn)
+        1    0.000    0.000    0.000    0.000 timer.py:24(<module>)
+        1    0.000    0.000    0.000    0.000 wrappedfd.py:24(<module>)
+        1    0.000    0.000    0.000    0.000 util.py:79(tcp_socket)
+  10009/1    0.021    0.000    0.000    0.000 pollhub.py:58(switch)
+        1    0.000    0.000    0.000    0.000 util.py:152(socket_bind_and_listen)
+  5001/14    0.017    0.000    0.000    0.000 coros.py:118(wait)
+        1    0.000    0.000    0.000    0.000 wrappedfd.py:81(wrapped_fd)
+        1    0.000    0.000    0.000    0.000 util.py:233(set_reuse_addr)
+        1    0.000    0.000    0.000    0.000 wrappedfd.py:109(bind)
+       20    0.000    0.000    0.000    0.000 pollhub.py:70(add_descriptor)
+        1    0.000    0.000    0.000    0.000 wrappedfd.py:105(listen)
+        2    0.000    0.000    0.000    0.000 <string>:1(getsockname)
+        1    0.000    0.000    0.000    0.000 <string>:1(bind)
+       15    0.000    0.000    0.000    0.000 greenlib.py:46(tracked_greenlet)
+        1    0.000    0.000    0.000    0.000 wrappedfd.py:101(getsockname)
+       20    0.000    0.000    0.000    0.000 pollhub.py:76(remove_descriptor)
+       17    0.000    0.000    0.000    0.000 {built-in method register}
+        1    0.000    0.000    0.000    0.000 wrappedfd.py:113(getsockopt)
+        1    0.000    0.000    0.000    0.000 <string>:1(listen)
+        1    0.000    0.000    0.000    0.000 pollhub.py:42(__init__)
+        1    0.000    0.000    0.000    0.000 wrappedfd.py:117(setsockopt)
+        1    0.000    0.000    0.000    0.000 pollhub.py:41(Hub)
+        1    0.000    0.000    0.000    0.000 <string>:1(getsockopt)
+        1    0.000    0.000    0.000    0.000 <string>:1(setsockopt)
+        1    0.000    0.000    0.000    0.000 wrappedfd.py:125(fileno)
+       16    0.000    0.000    0.000    0.000 {built-in method unregister}
+       14    0.000    0.000    0.000    0.000 {method 'add' of 'set' objects}
+        1    0.000    0.000    0.000    0.000 runloop.py:41(__init__)
+        1    0.000    0.000    0.000    0.000 pools.py:62(__init__)
+        1    0.000    0.000    0.000    0.000 runloop.py:38(RunLoop)
+        1    0.000    0.000    0.000    0.000 wrappedfd.py:290(wrapped_file)
+        1    0.000    0.000    0.000    0.000 httpd.py:535(__init__)
+        1    0.000    0.000    0.000    0.000 timer.py:31(Timer)
+        2    0.000    0.000    0.000    0.000 wrappedfd.py:33(higher_order_recv)
+        1    0.000    0.000    0.000    0.000 wrappedfd.py:67(RefCount)
+        1    0.000    0.000    0.000    0.000 runloop.py:68(default_sleep)
+        1    0.000    0.000    0.000    0.000 eventlethello.py:23(deadlog)
+        2    0.000    0.000    0.000    0.000 wrappedfd.py:56(higher_order_send)
+        1    0.000    0.000    0.000    0.000 {select.poll}
+        1    0.000    0.000    0.000    0.000 {sys.exc_info}
+      6/0    0.000    0.000    0.000          coros.py:446(_main_loop)
+  20058/0    0.026    0.000    0.000          {method 'switch' of 'greenlet.greenlet' objects}
+        1    0.000    0.000    0.000    0.000 runloop.py:65(default_clock)
+  20058/0    0.084    0.000    0.000          greenlib.py:296(switch)
+      2/0    0.057    0.029    0.000          greenlib.py:260(greenlet_body)
+        1    0.000    0.000    0.000    0.000 {method 'disable' of '_lsprof.Profiler' objects}
+
+

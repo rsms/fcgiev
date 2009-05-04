@@ -27,4 +27,5 @@ def main():
   httpd.server(api.tcp_listener(('127.0.0.1', 8090)), Handler(), max_size=5000, log=deadlog())
  
 if __name__ == '__main__':
+  #import cProfile;cProfile.run('main()', 'eventlethello.prof')
   main()
