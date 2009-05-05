@@ -48,8 +48,8 @@ inline static void buf_drain(buf_t *b, Py_ssize_t amount) {
 
 
 inline static int _recv(ctx_t *ctx, Py_ssize_t minlen) {
+  PyThreadState *tstate;
   PyObject *bytes = NULL, *tr;
-  PyObject *ptype = NULL, *pvalue = NULL, *ptraceback = NULL;
   PyObject *args = PyTuple_Pack(1, NUMBER_FromLong((long)minlen));
   int ret = 0;
   
@@ -57,21 +57,18 @@ inline static int _recv(ctx_t *ctx, Py_ssize_t minlen) {
     bytes = PyObject_CallObject(ctx->recvfunc, args);
     
     if (bytes == NULL) {
-      PyErr_Fetch(&ptype, &pvalue, &ptraceback);
+      tstate = PyThreadState_GET();
       // todo check if ptype/pvalue is socket.error
-      if (PyTuple_GET_SIZE(((PyBaseExceptionObject *)pvalue)->args) > 0) {
-        #define ERN ((PyBaseExceptionObject *)pvalue)->args
-        if (ERN && NUMBER_Check(ERN) && NUMBER_AsLong(ERN) == 35) {
-          // EWOULDBLOCK / temp unavil. -- jump on trampoline
-          if ((tr = PyObject_CallObject(ctx->trampoline, ctx->recvargs)) == NULL) {
-            ret = -1;
-            break;
-          }
+      #define ERN ((PyBaseExceptionObject *)(tstate->curexc_value))->args
+      if (tstate->curexc_value && ERN && NUMBER_Check(ERN) && NUMBER_AsLong(ERN) == 35) {
+        // EWOULDBLOCK / temp unavil. -- jump on trampoline
+        PyErr_Clear();
+        if ((tr = PyObject_CallObject(ctx->trampoline, ctx->recvargs)) != NULL) {
           Py_DECREF(tr);
           continue;
         }
-        #undef ERN
       }
+      #undef ERN
       ret = -1;
       break;
     }
@@ -79,7 +76,7 @@ inline static int _recv(ctx_t *ctx, Py_ssize_t minlen) {
     assert(bytes != Py_None);
     
     if (PyBytes_GET_SIZE(bytes) == 0) {
-      ret = 1;
+      ret = 1; // EOF
       break;
     }
     
@@ -100,8 +97,8 @@ inline static int _recv(ctx_t *ctx, Py_ssize_t minlen) {
 
 
 inline static int _send(ctx_t *ctx, const char *pch, Py_ssize_t len) {
+  PyThreadState *tstate;
   PyObject *data, *args, *sent, *tr;
-  PyObject *ptype = NULL, *pvalue = NULL, *ptraceback = NULL;
   int ret;
   
   ret = 0;
@@ -109,24 +106,22 @@ inline static int _send(ctx_t *ctx, const char *pch, Py_ssize_t len) {
   args = PyTuple_Pack(1, data);
   
   while (1) {
+    sent = PyObject_CallObject(ctx->sendfunc, args);
     
-    if ((sent = PyObject_CallObject(ctx->sendfunc, args)) == NULL) {
-      PyErr_Fetch(&ptype, &pvalue, &ptraceback);
+    if (sent == NULL) {
+      tstate = PyThreadState_GET();
       // todo check if ptype/pvalue is socket.error
-      if (PyTuple_GET_SIZE(((PyBaseExceptionObject *)pvalue)->args) > 0) {
-        #define ERN ((PyBaseExceptionObject *)pvalue)->args
-        if (ERN && NUMBER_Check(ERN) && NUMBER_AsLong(ERN) == 35) {
-          // EWOULDBLOCK / temp unavil. -- jump on trampoline
-          if ((tr = PyObject_CallObject(ctx->trampoline, ctx->sendargs)) == NULL) {
-            ret = -1;
-            break;
-          }
+      #define ERN ((PyBaseExceptionObject *)(tstate->curexc_value))->args
+      if (tstate->curexc_value && ERN && NUMBER_Check(ERN) && NUMBER_AsLong(ERN) == 35) {
+        // EWOULDBLOCK / temp unavil. -- jump on trampoline
+        PyErr_Clear();
+        if ((tr = PyObject_CallObject(ctx->trampoline, ctx->sendargs)) != NULL) {
           Py_DECREF(tr);
           continue;
         }
         #undef ERN
       }
-      // actual exception
+      ret = -1;
       goto returnnow;
     }
     
@@ -173,54 +168,57 @@ inline static int process_unknown(ctx_t *ctx, uint8_t type, uint16_t len) {
  * fcgiev.process(OOO)
  */
 PyObject *fcgiev_process(PyObject *_null, PyObject *args, PyObject *kwargs) {
-  ctx_t ctx;
+  ctx_t *ctx;
   PyObject *retval = NULL;
   
   static char *kwlist[] = {"fd", "spawner", "trampoline", NULL};
+  ctx = (ctx_t *)malloc(sizeof(ctx_t));
   
   /* Parse arguments */
-  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OOO:process", kwlist, &ctx.fd, &ctx.spawner, &ctx.trampoline)) {
-    return NULL;
+  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OOO:process", kwlist, 
+    &ctx->fd, &ctx->spawner, &ctx->trampoline))
+  {
+    goto returnnow;
   }
   
   /* Get fd functions */
   {
-    if ((ctx.recvfunc = PyObject_GetAttrString(ctx.fd, "recv")) == NULL)
-      return NULL;
-    Py_DECREF(ctx.recvfunc);
-    if (ctx.recvfunc == Py_None) {
+    if ((ctx->recvfunc = PyObject_GetAttrString(ctx->fd, "recv")) == NULL)
+      goto returnnow;
+    Py_DECREF(ctx->recvfunc);
+    if (ctx->recvfunc == Py_None) {
       // we can not use PyMethod_Check because recv might be a built-in method
       return PyErr_Format(PyExc_TypeError, "fd.recv must be a method");
     }
-    if ((ctx.sendfunc = PyObject_GetAttrString(ctx.fd, "send")) == NULL)
-      return NULL;
-    Py_DECREF(ctx.sendfunc);
-    if (ctx.sendfunc == Py_None) {
+    if ((ctx->sendfunc = PyObject_GetAttrString(ctx->fd, "send")) == NULL)
+      goto returnnow;
+    Py_DECREF(ctx->sendfunc);
+    if (ctx->sendfunc == Py_None) {
       return PyErr_Format(PyExc_TypeError, "fd.send must be a method");
     }
   }
   
   /* Typecheck trampoline */
-  if (!PyFunction_Check(ctx.trampoline)) {
+  if (!PyFunction_Check(ctx->trampoline)) {
     PyErr_Format(PyExc_TypeError, "trampoline is not a function");
-    return NULL;
+    goto returnnow;
   }
   
   /* Arguments used often */
-  ctx.recvargs = Py_BuildValue("(OO)", ctx.fd, Py_True);
-  ctx.sendargs = Py_BuildValue("(OOO)", ctx.fd, Py_None, Py_True);
+  ctx->recvargs = Py_BuildValue("(OO)", ctx->fd, Py_True);
+  ctx->sendargs = Py_BuildValue("(OOO)", ctx->fd, Py_None, Py_True);
   
   /* process fastcgi packets */
   const header_t *hp;
   int readst;
-  ctx.b.buf = PyBytes_FromStringAndSize(NULL, 32);
-  ctx.b.p = PyBytes_AS_STRING(ctx.b.buf);
+  ctx->b.buf = PyBytes_FromStringAndSize(NULL, 32);
+  ctx->b.p = PyBytes_AS_STRING(ctx->b.buf);
   uint16_t msg_len, msg_id;
   Py_ssize_t lenreq;
   
   #define CHECKREAD do { \
     if (readst != 0) { \
-      Py_XDECREF(ctx.b.buf); \
+      Py_XDECREF(ctx->b.buf); \
       if (readst == -1) \
         goto returnnow; \
       break; \
@@ -230,11 +228,11 @@ PyObject *fcgiev_process(PyObject *_null, PyObject *args, PyObject *kwargs) {
   /*#define READ(t, n) readst = _read(fd, recvfunc, &b, t, n) */
   
   while(1) {
-    readst = _recv(&ctx, 8);
+    readst = _recv(ctx, 8);
     CHECKREAD;
     
     // cast
-    hp = (const header_t *)PyBytes_AS_STRING(ctx.b.buf);
+    hp = (const header_t *)PyBytes_AS_STRING(ctx->b.buf);
     
     // We only handle FCGI v1
     if (hp->version != 1) {
@@ -251,9 +249,9 @@ PyObject *fcgiev_process(PyObject *_null, PyObject *args, PyObject *kwargs) {
     
     // Need more data?
     if (hp->type == TYPE_PARAMS || hp->type == TYPE_STDIN || hp->type == TYPE_BEGIN_REQUEST) {
-      lenreq = (sizeof(header_t) + msg_len + hp->paddingLength) - buf_length(&ctx.b);
+      lenreq = (sizeof(header_t) + msg_len + hp->paddingLength) - buf_length(&ctx->b);
       if (lenreq > 0) {
-        readst = _recv(&ctx, lenreq);
+        readst = _recv(ctx, lenreq);
         CHECKREAD;
       }
     }
@@ -264,7 +262,7 @@ PyObject *fcgiev_process(PyObject *_null, PyObject *args, PyObject *kwargs) {
     
     switch (hp->type) {
       case TYPE_BEGIN_REQUEST:
-        if (!process_begin_request(&ctx, msg_id, (const begin_request_t *)(hp + sizeof(header_t)) )) {
+        if (!process_begin_request(ctx, msg_id, (const begin_request_t *)(hp + sizeof(header_t)) )) {
           goto returnnow;
         }
         break;
@@ -286,7 +284,7 @@ PyObject *fcgiev_process(PyObject *_null, PyObject *args, PyObject *kwargs) {
       //case TYPE_GET_VALUES_RESULT:
       //case TYPE_UNKNOWN:
       default:
-        if (!process_unknown(&ctx, hp->type, msg_len)) {
+        if (!process_unknown(ctx, hp->type, msg_len)) {
           goto returnnow;
         }
     }
@@ -297,9 +295,13 @@ PyObject *fcgiev_process(PyObject *_null, PyObject *args, PyObject *kwargs) {
   Py_INCREF(retval);
 
 returnnow:
-  Py_XDECREF(ctx.recvargs);
-  Py_XDECREF(ctx.sendargs);
-  Py_XDECREF(ctx.b.buf);
+  Py_XDECREF(ctx->recvargs);
+  Py_XDECREF(ctx->sendargs);
+  Py_XDECREF(ctx->b.buf);
+  if (ctx) {
+    free(ctx);
+    ctx = NULL;
+  }
   return retval;
 }
 
