@@ -20,7 +20,7 @@ libraries = [] # example: [ ['tokyocabinet', ['tchdb.h']] ]
 X86_MACHINES = ['i386', 'i686', 'i86pc', 'amd64', 'x86_64']
 sources = [
   'src/__init__.c',
-  'src/util.c',
+  #'src/buffer.c',
   # All source files need to be specified here
 ]
 

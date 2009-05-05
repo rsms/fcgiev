@@ -142,6 +142,14 @@ typedef uint8_t byte;
         log_debug("repr(%s) = <NULL>", #o);\
       }\
     } while (0)
+  #define DUMPBYTES(p, sz) \
+    do {\
+      PyObject *s = PyString_FromStringAndSize(p, sz);\
+      PyObject *repr = PyObject_Repr((PyObject *)s);\
+      Py_DECREF(s);\
+      log_debug("DUMPBYTES(%p) => %s", (p), PyBytes_AS_STRING(repr));\
+      Py_DECREF(repr);\
+    } while (0)
 #else
   #define log_debug(fmt, ...) ((void)0)
   #define assert_refcount(o, count_test) 
