@@ -1,7 +1,6 @@
 #ifndef _FCGIEV_BUFFER_H_
 #define _FCGIEV_BUFFER_H_
 
-#include <assert.h>
 #include <stdint.h>
 #include <string.h>
 #include <sys/types.h>
@@ -69,7 +68,7 @@ static void buf_reserve(buf_t *buf, size_t size) {
     if (buf->orig_buffer != buf->buffer)
       buf_align(buf);
     
-    assert((newbuf = realloc(buf->buffer, length)) != NULL);
+    AN(newbuf = realloc(buf->buffer, length));
     
     buf->orig_buffer = buf->buffer = newbuf;
     buf->totallen = length;

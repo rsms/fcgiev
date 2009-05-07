@@ -15,8 +15,6 @@ PyObject *fcgiev_module;
 typedef struct {
   int fd;
   buf_t *buf;
-  PyObject *recvfunc;
-  PyObject *sendfunc;
   PyObject *spawner;
   PyObject *trampoline;
   PyObject *trampolinerecvargs;
@@ -177,7 +175,7 @@ inline static int process_unknown(ctx_t *ctx, uint8_t type, uint16_t len) {
 
 
 /*inline static void _configure_socket(int fd) {
-  assert(setsockopt(fd, SOL_SOCKET, int option_name, const void *option_value, socklen_t option_len) == 0);
+  AZ(setsockopt(fd, SOL_SOCKET, int option_name, const void *option_value, socklen_t option_len));
   SO_RCVLOWAT
 }*/
 

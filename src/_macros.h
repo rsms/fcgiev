@@ -5,6 +5,7 @@
 #include <pyconfig.h>
 #include <structmember.h>
 #include <stdint.h>
+#include <assert.h>
 
 /* Types */
 #if (PY_VERSION_HEX < 0x02050000)
@@ -43,6 +44,14 @@ typedef uint8_t byte;
   #define NUMBER_FromLong PyInt_FromLong
 #endif
 
+/* Assertion macros */
+#ifndef NDEBUG
+#define AZ(foo) assert((foo) == 0)
+#define AN(foo) assert((foo) != 0)
+#else
+#define AZ(foo) (foo)
+#define AN(foo) (foo)
+#endif
 
 /* Get minimum value */
 #ifndef min
