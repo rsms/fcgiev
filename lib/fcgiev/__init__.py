@@ -25,14 +25,15 @@ class Server(object):
   
   def fcgi_main(self, sock, addr):
     #coro = api.getcurrent()
-    print "client %s:%d connected" % addr
+    #print "client %s:%d connected" % addr
     try:
       _fcgiev.process(sock.fd, self.spawner, api.trampoline)
     except socket.error, e:
       # 54: Connection reset by peer
-      if e.args[0] != 54:
+      # 32: Broken pipe (connection closed)
+      if e.args[0] not in (54, 32):
         raise
-    print "client %s:%d disconnected" % addr
+    #print "client %s:%d disconnected" % addr
   
   def run(self):
     try:

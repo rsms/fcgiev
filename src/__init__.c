@@ -44,6 +44,7 @@ inline static int _read(ctx_t *ctx, Py_ssize_t length) {
       r = ioctl(ctx->fd, FIONREAD, &n);
       if (r == -1 || n == 0) {
         if (r == -1 && errno && errno != EAGAIN) {
+          log_debug("ioctl caused errno [%d] %s", errno, strerror(errno));
           PyErr_SetFromErrno(PyExc_IOError);
           ret = -1;
           break;
@@ -78,7 +79,7 @@ inline static int _read(ctx_t *ctx, Py_ssize_t length) {
       #endif
       ret = -1;
       if (errno != 0) {
-        log_debug("socket errno [%d] %s", errno, strerror(errno));
+        log_debug("recv caused errno [%d] %s", errno, strerror(errno));
         PyErr_SetFromErrno(PyExc_IOError);
       }
       else if (received == 0) {
@@ -118,7 +119,7 @@ inline static int _write(ctx_t *ctx, const void *buffer, ssize_t length) {
         // PyObject_CallObject failed and exc is set
       }
       else {
-        log_debug("socket errno [%d] %s", errno, strerror(errno));
+        log_debug("send caused errno [%d] %s", errno, strerror(errno));
         PyErr_SetFromErrno(PyExc_IOError);
       }
       ret = -1;
@@ -141,6 +142,74 @@ inline static int _write(ctx_t *ctx, const void *buffer, ssize_t length) {
 
 
 // -----------------------------------------------------------------
+// request functions
+
+
+int request_end(ctx_t *ctx, uint16_t rid, uint32_t appstatus, uint8_t protostatus) {
+  uint8_t buf[32]; // header + header + end_request_t
+  uint8_t *p = buf;
+  
+  // Terminate the stdout and stderr stream, and send the end-request message.
+  header_init((header_t *)p, TYPE_STDOUT, rid, 0);
+  p += sizeof(header_t);
+  header_init((header_t *)p, TYPE_STDERR, rid, 0);
+  p += sizeof(header_t);
+  end_request_init((end_request_t *)p, rid, appstatus, protostatus);
+  p += sizeof(end_request_t);
+  
+  log_debug("sending END_REQUEST for id %d", rid);
+  
+  if (_write(ctx, (const void *)buf, sizeof(buf)) == -1)
+    return 0;
+  
+  //r->terminate = true;
+  // lets call request clean-up here
+  
+  return 1;
+}
+
+
+int request_write(ctx_t *ctx, uint16_t rid, const char *buf, uint16_t len, uint8_t stream) {
+  if(len == 0)
+    return 1;
+  
+  header_t msg;
+  header_init(&msg, stream, rid, len);
+  
+  log_debug("sending %d bytes to %s for request %d", len, TYPE_STDOUT ? "OUT" : "ERR", rid);
+  
+  if (_write(ctx, (const void *)&msg, sizeof(header_t)) == -1)
+    return 0;
+  
+  if (_write(ctx, (const void *)buf, len) == -1)
+    return 0;
+  
+  return 1;
+}
+
+
+int request_handle(ctx_t *ctx, uint16_t rid) {
+  log_debug("handling request %d", rid);
+  /*if (r->role != ROLE_RESPONDER) {
+    request_write(r, "We can't handle any role but RESPONDER.", 39, 0);
+    request_end(r, 1, PROTOST_UNKNOWN_ROLE);
+    return;
+  }*/
+  
+  static const char hello[] = "Content-type: text/plain\r\n\r\nHello world\n";
+  
+  if (!request_write(ctx, rid, hello, sizeof(hello)-1, TYPE_STDOUT))
+    return 0;
+  
+  if (!request_end(ctx, rid, 0, PROTOST_REQUEST_COMPLETE))
+    return 0;
+  
+  return 1;
+}
+
+
+// -----------------------------------------------------------------
+// fcgi proto parsing functions
 
 
 inline static int process_begin_request(ctx_t *ctx, uint16_t id, const begin_request_t *br) {
@@ -156,6 +225,9 @@ inline static int process_begin_request(ctx_t *ctx, uint16_t id, const begin_req
   
   buf_drain(ctx->buf, sizeof(header_t)+sizeof(begin_request_t));
   
+  // We do not handle the request right away, but waits for the meta 
+  // data to arrive, parsed by process_params
+  
   return 1;
 }
 
@@ -169,6 +241,81 @@ inline static int process_unknown(ctx_t *ctx, uint8_t type, uint16_t len) {
     return 0;
   
   buf_drain(ctx->buf, sizeof(header_t) + len);
+  
+  return 1;
+}
+
+
+inline static int process_abort_request(ctx_t *ctx, uint16_t rid) {
+  // app callback: app_handle_requestaborted(r);
+  // call the same clean-up code as we should do in request_end
+  buf_drain(ctx->buf, sizeof(header_t));
+  return 1;
+}
+
+
+inline static int process_params(ctx_t *ctx, uint16_t rid, const byte *buf, uint16_t len) {
+  // Is this the last params message? If so, handle the request
+  if (len == 0) {
+    buf_drain(ctx->buf, sizeof(header_t));
+    return request_handle(ctx, rid);
+  }
+  
+  byte const * const bufend = buf + len;
+  uint32_t name_len;
+  uint32_t data_len;
+  
+  while(buf != bufend) {
+    
+    if (*buf >> 7 == 0) {
+      name_len = *(buf++);
+    }
+    else {
+      name_len = ((buf[0] & 0x7F) << 24) + (buf[1] << 16) + (buf[2] << 8) + buf[3];
+      buf += 4;
+    }
+    
+    if (*buf >> 7 == 0) {
+      data_len = *(buf++);
+    }
+    else {
+      data_len = ((buf[0] & 0x7F) << 24) + (buf[1] << 16) + (buf[2] << 8) + buf[3];
+      buf += 4;
+    }
+    
+    assert(buf + name_len + data_len <= bufend);
+    
+    // todo replace with actual adding to req:
+    char k[255], v[8192];
+    strncpy(k, (const char *)buf, name_len); k[name_len] = '\0';
+    buf += name_len;
+    strncpy(v, (const char *)buf, data_len); v[data_len] = '\0';
+    buf += data_len;
+    log_debug("'%s' => '%s'", k, v);
+    // todo: req->second->params[name] = data;
+  }
+  
+  buf_drain(ctx->buf, sizeof(header_t) + len);
+  
+  return 1;
+}
+
+
+inline static int process_stdin(ctx_t *ctx, uint16_t rid, const byte *buf, uint16_t len) {
+  // strip fcgi header
+  buf_drain(ctx->buf, sizeof(header_t));
+  
+  // Is this the last message to come? Then set the eof flag.
+  // Otherwise, add the data to the buffer in the request structure.  
+  if (len == 0) {
+    //r->stdin_eof = true;
+    log_debug("EOF in process_stdin for %d", rid);
+    return 1;
+  }
+  
+  // for now, just forget the data. Here we should actually return yield if the 
+  // user asked for stdin data, else we should forget it.
+  buf_drain(ctx->buf, len);
   
   return 1;
 }
@@ -262,24 +409,39 @@ PyObject *fcgiev_process(PyObject *_null, PyObject *args, PyObject *kwargs) {
     }
     
     // Process the message.
-    printf("fcgiproto>> received message: id: %d, bodylen: %d, padding: %d, type: %d\n",
+    log_debug("_process: received message: id: %d, bodylen: %d, padding: %d, type: %d",
       msg_id, msg_len, hp->paddingLength, (int)hp->type);
     
     switch (hp->type) {
+      
       case TYPE_BEGIN_REQUEST:
-        if (!process_begin_request(ctx, msg_id, (const begin_request_t *)(BUF_DATA(ctx->buf) + sizeof(header_t)) )) {
+        if (!process_begin_request(ctx, msg_id, 
+          (const begin_request_t *)(BUF_DATA(ctx->buf) + sizeof(header_t)) ))
+        {
           goto returnnow;
         }
         break;
-      //case TYPE_ABORT_REQUEST:
-      //  process_abort_request(&b, msg_id);
-      //  break;
-      //case TYPE_PARAMS:
-      //  process_params(&b, msg_id, (const uint8_t *)PyBytes_AS_STRING(b.buf) + sizeof(header_t), msg_len);
-      //  break;
-      //case TYPE_STDIN:
-      //  process_stdin(&b, msg_id, (const uint8_t *)PyBytes_AS_STRING(b.buf) + sizeof(header_t), msg_len);
-      //  break;
+      
+      case TYPE_ABORT_REQUEST:
+        if (!process_abort_request(ctx, msg_id))
+          goto returnnow;
+        break;
+      
+      case TYPE_PARAMS:
+        if (!process_params(ctx, msg_id, 
+          (const byte *)(BUF_DATA(ctx->buf) + sizeof(header_t)), msg_len))
+        {
+          goto returnnow;
+        }
+        break;
+      
+      case TYPE_STDIN:
+        if (!process_stdin(ctx, msg_id, 
+          (const byte *)(BUF_DATA(ctx->buf) + sizeof(header_t)), msg_len))
+        {
+          goto returnnow;
+        }
+        break;
       
       //case TYPE_END_REQUEST:
       //case TYPE_STDOUT:
