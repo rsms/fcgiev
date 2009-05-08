@@ -316,9 +316,8 @@ inline static int process_stdin(ctx_t *ctx, uint16_t rid, const byte *buf, uint1
   // Is this the last message to come? Then set the eof flag.
   // Otherwise, add the data to the buffer in the request structure.  
   if (len == 0) {
-    //r->stdin_eof = true;
     log_debug("EOF in process_stdin for %d", rid);
-    if (ctx->keep_connection)
+    if (!ctx->keep_connection)
       ctx->should_disconnect = 1;
     return 1;
   }
@@ -393,14 +392,6 @@ PyObject *fcgiev_process(PyObject *_null, PyObject *args, PyObject *kwargs) {
     
     if (BUF_LENGTH(ctx->buf) < sizeof(header_t)) {
       readst = _read(ctx, sizeof(header_t));
-      if (readst == -1 && (errno == 35 || errno == 0)) {
-        // todo xxx this is kinda ugly. we are unable to close(ctx->fd) in time,
-        // so the io hub will raise a socket.error(32, 'Broken Pipe') which we
-        // catch, thus we check to see that errno is 35 (EAGAIN) or 0 (not set)
-        // as the io hub does not set errno but an actual error in _read would.
-        PyErr_Clear();
-        break;
-      }
       CHECKREAD;
     }
     
