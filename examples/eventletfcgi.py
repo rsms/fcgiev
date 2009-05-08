@@ -6,8 +6,11 @@ from eventlet import api, coros
 from fcgiev import Server
 
 def main():
+  port = 5000
+  if len(sys.argv) > 1:
+    port = int(sys.argv[1])
   pool = coros.CoroutinePool(max_size=10)
-  server = Server(api.tcp_listener(('127.0.0.1', 5000)), pool)
+  server = Server(api.tcp_listener(('127.0.0.1', port)), pool)
   server.run()
 
 if __name__ == '__main__':

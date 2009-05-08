@@ -19,6 +19,8 @@ typedef struct {
   PyObject *trampoline;
   PyObject *trampolinerecvargs;
   PyObject *trampolinesendargs;
+  int should_disconnect;
+  int keep_connection;
 } ctx_t;
 
 
@@ -216,6 +218,8 @@ inline static int process_begin_request(ctx_t *ctx, uint16_t id, const begin_req
   log_debug("begin request { id: %d, keepconn: %d, role: %d }", id,
     (br->flags & FLAG_KEEP_CONN) == 1, (uint16_t)((br->roleB1 << 8) + br->roleB0) );
   
+  ctx->keep_connection = (br->flags & FLAG_KEEP_CONN) ? 1 : 0;
+  
   if ( (uint16_t)((br->roleB1 << 8) + br->roleB0) != ROLE_RESPONDER ) {
     PyErr_Format( PyExc_IOError, 
       "unknown FastCGI application role %d -- can only handle RESPONDER",
@@ -250,6 +254,10 @@ inline static int process_abort_request(ctx_t *ctx, uint16_t rid) {
   // app callback: app_handle_requestaborted(r);
   // call the same clean-up code as we should do in request_end
   buf_drain(ctx->buf, sizeof(header_t));
+  
+  if (ctx->keep_connection)
+    ctx->should_disconnect = 1;
+  
   return 1;
 }
 
@@ -310,6 +318,8 @@ inline static int process_stdin(ctx_t *ctx, uint16_t rid, const byte *buf, uint1
   if (len == 0) {
     //r->stdin_eof = true;
     log_debug("EOF in process_stdin for %d", rid);
+    if (ctx->keep_connection)
+      ctx->should_disconnect = 1;
     return 1;
   }
   
@@ -370,16 +380,27 @@ PyObject *fcgiev_process(PyObject *_null, PyObject *args, PyObject *kwargs) {
   
   #define CHECKREAD do { \
     if (readst != 0) { \
-      if (readst == -1) \
+      if (readst == -1) { \
+        log_debug("read failed with errno [%d] %s", errno, strerror(errno)); \
         goto returnnow; \
+      } \
       break; \
     } \
   } while(0)
   
-  
-  while(1) {
+  while(ctx->should_disconnect == 0) {
+    log_debug("processing next message");
+    
     if (BUF_LENGTH(ctx->buf) < sizeof(header_t)) {
       readst = _read(ctx, sizeof(header_t));
+      if (readst == -1 && (errno == 35 || errno == 0)) {
+        // todo xxx this is kinda ugly. we are unable to close(ctx->fd) in time,
+        // so the io hub will raise a socket.error(32, 'Broken Pipe') which we
+        // catch, thus we check to see that errno is 35 (EAGAIN) or 0 (not set)
+        // as the io hub does not set errno but an actual error in _read would.
+        PyErr_Clear();
+        break;
+      }
       CHECKREAD;
     }
     
@@ -415,8 +436,8 @@ PyObject *fcgiev_process(PyObject *_null, PyObject *args, PyObject *kwargs) {
     switch (hp->type) {
       
       case TYPE_BEGIN_REQUEST:
-        if (!process_begin_request(ctx, msg_id, 
-          (const begin_request_t *)(BUF_DATA(ctx->buf) + sizeof(header_t)) ))
+        if (!process_begin_request(ctx, msg_id,
+          (const begin_request_t *)(BUF_DATA(ctx->buf) + sizeof(header_t))))
         {
           goto returnnow;
         }
@@ -455,13 +476,26 @@ PyObject *fcgiev_process(PyObject *_null, PyObject *args, PyObject *kwargs) {
           goto returnnow;
         }
     }
+    
+    if (hp->paddingLength)
+      buf_drain(ctx->buf, hp->paddingLength);
   }
+  
+  log_debug("nicely stopped processing fastcgi messages");
+  
+  // todo: disable SO_LINGER at this point
+  if (ctx->should_disconnect)
+    close(ctx->fd);
   
   // set clean return
   retval = Py_None;
   Py_INCREF(retval);
 
 returnnow:
+  #if DEBUG
+    if (PyErr_Occurred())
+      log_debug("exception occurred");
+  #endif
   if (ctx) {
     Py_XDECREF(ctx->trampolinerecvargs);
     Py_XDECREF(ctx->trampolinesendargs);
