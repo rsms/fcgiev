@@ -433,6 +433,8 @@ void fcgiproto_readcb(struct bufferevent *bev, request_t *r) {
         process_unknown(bev, hp->type, msg_len);
     }/* switch(hp->type) */
     
+    if (hp->paddingLength)
+      evbuffer_drain(bev->input, hp->paddingLength);
   }
 }
 

@@ -1,0 +1,26 @@
+
+client
+	http request
+		find handler
+			fcgi begin req
+				parse
+			fcgi params
+				parse
+			fcgi params
+				parse
+			fcgi end params
+				build response
+					interpret request
+					read stdin
+			fcgi stdin
+						wait
+					query database
+						wait
+					parse reply
+					build output
+					send output
+						wait
+					send output
+						wait
+				end response
+			fcgi end response

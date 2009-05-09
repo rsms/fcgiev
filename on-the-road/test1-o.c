@@ -218,6 +218,9 @@ void request_write(request_t *r, const char *buf, uint16_t len, uint8_t tostdout
 }
 
 
+uint16_t max_msg_id = 0;
+
+
 void request_end(request_t *r, uint32_t appstatus, uint8_t protostatus) {
   uint8_t buf[32]; // header + header + end_request_t
   uint8_t *p = buf;
@@ -233,6 +236,9 @@ void request_end(request_t *r, uint32_t appstatus, uint8_t protostatus) {
   p += sizeof(end_request_t);
   
   bufferevent_write(r->bev, (const void *)buf, sizeof(buf));
+  
+  // debug
+  printf("END %d\n", max_msg_id);
   
   r->terminate = true;
 }
@@ -387,6 +393,10 @@ void fcgiproto_readcb(struct bufferevent *bev, request_t *r) {
     uint16_t msg_len = (hp->contentLengthB1 << 8) + hp->contentLengthB0;
     uint16_t msg_id  = (hp->requestIdB1 << 8) + hp->requestIdB0;
     
+    // debug
+    if (msg_id > max_msg_id)
+      max_msg_id = msg_id;
+    
     if (EVBUFFER_LENGTH(bev->input) < sizeof(header_t) + msg_len + hp->paddingLength)
       return;
     
@@ -415,6 +425,8 @@ void fcgiproto_readcb(struct bufferevent *bev, request_t *r) {
         process_unknown(bev, hp->type, msg_len);
     }/* switch(hp->type) */
     
+    if (hp->paddingLength)
+      evbuffer_drain(bev->input, hp->paddingLength);
   }
 }
 
