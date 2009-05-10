@@ -4,8 +4,7 @@
 from fcgiev.release import __version__
 import _fcgiev
 import socket
-from eventlet import api, httpd, util, coros
-from eventlet.pools import Pool
+from eventlet import api, util
 
 #util.wrap_socket_with_coroutine_socket()
 
@@ -23,9 +22,10 @@ class Server(object):
     else:
       self.spawner = api.spawn
   
-  def fcgi_main(self, sock, addr):
+  def handle_connection(self, sock, addr):
     #coro = api.getcurrent()
-    #print "client %s:%d connected" % addr
+    import sys
+    print >> sys.stderr, "client %s connected" % repr(addr)
     try:
       _fcgiev.process(sock.fd, self.spawner, api.trampoline)
     except socket.error, e:
@@ -39,7 +39,7 @@ class Server(object):
     try:
       while True:
         try:
-          self.fcgi_main(*self.sock.accept())
+          self.handle_connection(*self.sock.accept())
         except KeyboardInterrupt:
           api.get_hub().remove_descriptor(self.sock.fileno())
           break

@@ -9,6 +9,11 @@
 
 PyObject *fcgiev_module;
 
+#define TEST_CONCURRENCY
+
+#ifdef TEST_CONCURRENCY
+uint16_t msg_id_max = 0, concurrency = 0, concurrency_max = 0;
+#endif
 
 // ----------------------------------------------------------
 
@@ -186,6 +191,10 @@ int request_end(ctx_t *ctx, uint16_t rid, uint32_t appstatus, uint8_t protostatu
   
   log_debug("sending END_REQUEST for id %d", rid);
   
+  #ifdef TEST_CONCURRENCY
+  concurrency--;
+  #endif
+  
   if (_write(ctx, (const void *)buf, sizeof(buf)) == -1)
     return 0;
   
@@ -220,6 +229,9 @@ int request_handle(ctx_t *ctx, uint16_t rid) {
     return;
   }*/
   
+  // simulate latency
+  //usleep(50000); // 50ms
+  
   static const char hello[] = "Content-type: text/plain\r\n\r\nHello world\n";
   
   if (!request_write(ctx, rid, hello, sizeof(hello)-1, TYPE_STDOUT))
@@ -248,6 +260,12 @@ inline static int process_begin_request(ctx_t *ctx, uint16_t id, const begin_req
       (uint16_t)((br->roleB1 << 8) + br->roleB0) );
     return 0;
   }
+  
+  #ifdef TEST_CONCURRENCY
+  concurrency++;
+  if (concurrency_max < concurrency)
+    concurrency_max = concurrency;
+  #endif
   
   buf_drain(ctx->buf, sizeof(header_t)+sizeof(begin_request_t));
   
@@ -385,8 +403,6 @@ inline static int process_stdin(ctx_t *ctx, uint16_t rid, const byte *buf, uint1
   SO_RCVLOWAT
 }*/
 
-int maxcu = 0;
-
 /**
  * fcgiev.process(OOO)
  */
@@ -464,6 +480,10 @@ PyObject *fcgiev_process(PyObject *_null, PyObject *args, PyObject *kwargs) {
     msg_len = (hp->contentLengthB1 << 8) + hp->contentLengthB0;
     msg_id  = (hp->requestIdB1 << 8) + hp->requestIdB0;
     
+    // debug
+    if (msg_id > msg_id_max)
+      msg_id_max = msg_id;
+    
     // Need more data?
     lenreq = (sizeof(header_t) + msg_len + hp->paddingLength) - BUF_LENGTH(ctx->buf);
     if (lenreq > 0) {
@@ -525,15 +545,9 @@ PyObject *fcgiev_process(PyObject *_null, PyObject *args, PyObject *kwargs) {
   
   log_debug("nicely stopped processing fastcgi messages");
   
-  #if DEBUG
-    int i = -1;
-    for (;i<FCGI_MAX_REQUESTS;i++) {
-      if (!ctx->requests[i])
-        break;
-    }
-    if (i > maxcu)
-      maxcu = i;
-    log_debug("max concurrency: %d", maxcu);
+  #ifdef TEST_CONCURRENCY
+  fprintf(stderr, "concurrency_max => %d\n", concurrency_max);
+  fprintf(stderr, "msg_id_max => %d\n", msg_id_max);
   #endif
   
   // todo: disable SO_LINGER at this point
