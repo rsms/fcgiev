@@ -12,7 +12,7 @@ class Handler(object):
     if len(path) > 0 and path[0] == "notexist":
       req.response(404, body='not found')
       return
-    #api.sleep(0.2)
+    api.sleep(0.2)
     req.write('hello world\n')
   
   def adapt(self, obj, req):

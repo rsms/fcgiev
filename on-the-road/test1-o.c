@@ -10,6 +10,11 @@
 
 #include <event.h>
 
+#ifndef NDEBUG
+#define log_debug(fmt, ...) \
+  fprintf(stderr, "D %s:%d: " fmt "\n", __FILE__, __LINE__, ##__VA_ARGS__)
+#endif
+
 #define FCGI_LISTENSOCK_FILENO 0
 #define FLAG_KEEP_CONN 1
 #define REQUESTS_MAX __SHRT_MAX__+__SHRT_MAX__
@@ -197,6 +202,7 @@ inline static request_t *request_get(uint16_t id) {
 
 // restore a request object
 inline static void request_put(request_t *r) {
+  log_debug("put #%d", r->id);
   r->bev->cbarg = NULL;
   r->bev = NULL;
 }
@@ -237,9 +243,6 @@ void request_end(request_t *r, uint32_t appstatus, uint8_t protostatus) {
   
   bufferevent_write(r->bev, (const void *)buf, sizeof(buf));
   
-  // debug
-  printf("END %d\n", max_msg_id);
-  
   r->terminate = true;
 }
 
@@ -266,6 +269,7 @@ inline static void process_unknown(struct bufferevent *bev, uint8_t type, uint16
 
 inline static void process_begin_request(struct bufferevent *bev, uint16_t id, const begin_request_t *br) {
   request_t *r;
+  log_debug("begin #%d", id);
   
   r = request_get(id);
   assert(r->bev == NULL);
@@ -284,6 +288,7 @@ inline static void process_begin_request(struct bufferevent *bev, uint16_t id, c
 
 inline static void process_abort_request(struct bufferevent *bev, uint16_t id) {
   request_t *r;
+  log_debug("abort #%d", id);
   
   r = request_get(id);
   assert(r->bev != NULL);
@@ -418,7 +423,8 @@ void fcgiproto_readcb(struct bufferevent *bev, request_t *r) {
       //case TYPE_STDOUT:
       //case TYPE_STDERR:
       //case TYPE_DATA:
-      //case TYPE_GET_VALUES:
+      case TYPE_GET_VALUES:
+        fprintf(stderr, "received TYPE_GET_VALUES\n");
       //case TYPE_GET_VALUES_RESULT:
       //case TYPE_UNKNOWN:
       default:
@@ -435,6 +441,7 @@ void fcgiproto_writecb(struct bufferevent *bev, request_t *r) {
   // Invoked if bev->output is drained or below the low watermark.
   
   if (r != NULL && r->terminate) {
+    log_debug("writelow #%d", r->id);
     bev_disable(r->bev);
     bev_drain(r->bev);
     if (r->keepconn == false) {
@@ -571,5 +578,5 @@ int main(int argc, const char * const *argv) {
   
   return 0;
 }
-// gcc -o test1 -L/opt/local/lib -I/opt/local/include -levent test1.c sockutil.c
-// -O3 -finline-functions -ffast-math -funroll-all-loops -ftree -msse3
+// gcc -o test1 -O3 -finline-functions -ffast-math -funroll-all-loops -msse3 -L/opt/local/lib -I/opt/local/include -levent test1.c sockutil.c
+// 

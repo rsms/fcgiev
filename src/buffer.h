@@ -84,7 +84,7 @@ inline static void buf_append(buf_t *buf, const void *data, size_t len) {
 }
 
 
-static void buf_drain(buf_t *buf, size_t len) {
+inline static void buf_drain(buf_t *buf, size_t len) {
   if (len >= buf->off) {
     buf->off = 0;
     buf->buffer = buf->orig_buffer;

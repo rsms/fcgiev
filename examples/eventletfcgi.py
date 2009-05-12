@@ -2,8 +2,9 @@
 # encoding: utf-8
 import sys, os
 sys.path[0:0] = [os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 'lib')]
-from eventlet import api, coros
-from fcgiev import Server
+from eventlet import api, coros, util
+util.wrap_socket_with_coroutine_socket()
+from fcgiev.fcgi import handle_connection
 
 def fcgi_stdin_sock():
   import socket
@@ -12,7 +13,7 @@ def fcgi_stdin_sock():
 
 def accept(sock, handler):
   try:
-    print 'accepting connections on', sock.getsockname()
+    print 'listening on', sock.getsockname()
     while True:
       try:
         handler(*sock.accept())
@@ -26,10 +27,14 @@ def accept(sock, handler):
       pass
 
 
-def run(spawner, sockets, acceptor, handler):
+def run(sockets, handler, cpool):
+  if len(sockets) == 1:
+    accept(sockets[0], handler)
+    return
+  
   waiters = []
   for sock in sockets:
-    waiters.append(spawner(acceptor, sock, handler))
+    waiters.append(cpool.execute(accept, sock, handler))
   
   # wait for all the coroutines to come back before exiting the process
   for waiter in waiters:
@@ -49,16 +54,10 @@ def main():
                     help="size of coroutine pool.",
                     metavar="<size>",
                     type="int",
-                    default=10)
+                    default=512)
   opts, args = parser.parse_args()
-  
-  pool = None
-  spawner = api.spawn
   sockets = []
-  
-  if opts.cpool_size > 0:
-    pool = coros.CoroutinePool(max_size=opts.cpool_size)
-    spawner = pool.execute
+  pool = coros.CoroutinePool(max_size=opts.cpool_size)
   
   if len(args) == 0:
     sockets.append(fcgi_stdin_sock())
@@ -71,9 +70,7 @@ def main():
       addr = (addr[0], int(addr[1]))
       sockets.append(api.tcp_listener(addr))
   
-  server = Server(None, pool)
-  run(spawner, sockets, accept, server.handle_connection)
-  #server.run()
+  run(sockets, handle_connection, pool)
 
 if __name__ == '__main__':
   #import cProfile;cProfile.run('main()', 'eventletfcgi.prof')

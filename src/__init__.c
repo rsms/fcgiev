@@ -31,6 +31,7 @@ typedef struct {
   int should_disconnect;
   int keep_connection;
   request_t *requests[FCGI_MAX_REQUESTS];
+  PyThreadState *pythstate;
 } ctx_t;
 
 
@@ -53,15 +54,22 @@ inline static int _read(ctx_t *ctx, Py_ssize_t length) {
     
     /* use FIONREAD to get exact number of bytes waiting in the socket buffer */
     #ifdef FIONREAD
+      Py_BEGIN_ALLOW_THREADS
       r = ioctl(ctx->fd, FIONREAD, &n);
+      Py_END_ALLOW_THREADS
       if (r == -1 || n == 0) {
-        if (r == -1 && errno && errno != EAGAIN) {
+        if (r == -1 && errno != EAGAIN) {
           log_debug("ioctl caused errno [%d] %s", errno, strerror(errno));
           PyErr_SetFromErrno(PyExc_IOError);
           ret = -1;
           break;
         }
-        //log_debug("r: %d, errno: %d (%d)", r, errno, EAGAIN);
+        
+        /*if (r == -1)
+          log_debug("_read AGAIN [%d] %s", r, errno, strerror(errno));
+        else
+          log_debug("_read AGAIN len==0", r);*/
+        
         tr = PyObject_CallObject(ctx->trampoline, ctx->trampolinerecvargs);
         if (tr == NULL) {
           ret = -1;
@@ -75,11 +83,14 @@ inline static int _read(ctx_t *ctx, Py_ssize_t length) {
     buf_reserve(ctx->buf, BUF_LENGTH(ctx->buf) + (size_t)n);
     
     //log_debug("read(%d, %p, %d)", ctx->fd, BUF_DATA(ctx->buf), n);
+    Py_BEGIN_ALLOW_THREADS
     received = recv(ctx->fd, BUF_DATA(ctx->buf), n, 0);
+    Py_END_ALLOW_THREADS
     
     if (received < 1) {
       #ifndef FIONREAD
         if (errno == EAGAIN) {
+          //log_debug("recv => EAGAIN");
           tr = PyObject_CallObject(ctx->trampoline, ctx->trampolinerecvargs);
           if (tr == NULL) {
             ret = -1;
@@ -120,7 +131,9 @@ inline static int _write(ctx_t *ctx, const void *buffer, ssize_t length) {
   ssize_t sent;
   
   while (1) {
+    Py_BEGIN_ALLOW_THREADS
     sent = send(ctx->fd, buffer, (size_t)length, 0);
+    Py_END_ALLOW_THREADS
     
     if (sent == -1) {
       if (errno == EAGAIN) {
@@ -182,7 +195,25 @@ int request_end(ctx_t *ctx, uint16_t rid, uint32_t appstatus, uint8_t protostatu
   uint8_t *p = buf;
   
   // Terminate the stdout and stderr stream, and send the end-request message.
-  header_init((header_t *)p, TYPE_STDOUT, rid, 0);
+  header_t msg;
+  header_init(&msg, TYPE_STDOUT, rid, 0);
+  if (_write(ctx, (const void *)&msg, sizeof(header_t)) == -1)
+    return 0;
+  
+  // send end request
+  end_request_t endmsg;
+  end_request_init(&endmsg, rid, appstatus, protostatus);
+  log_debug("sending END_REQUEST {R%d, appst: %d, protost: %d",
+    rid, appstatus, protostatus);
+  
+  if (_write(ctx, (const void *)&endmsg, sizeof(end_request_t)) == -1)
+    return 0;
+  
+  #ifdef TEST_CONCURRENCY
+  concurrency--;
+  #endif
+  
+  /*header_init((header_t *)p, TYPE_STDOUT, rid, 0);
   p += sizeof(header_t);
   header_init((header_t *)p, TYPE_STDERR, rid, 0);
   p += sizeof(header_t);
@@ -196,7 +227,7 @@ int request_end(ctx_t *ctx, uint16_t rid, uint32_t appstatus, uint8_t protostatu
   #endif
   
   if (_write(ctx, (const void *)buf, sizeof(buf)) == -1)
-    return 0;
+    return 0;*/
   
   return 1;
 }
@@ -223,11 +254,6 @@ int request_write(ctx_t *ctx, uint16_t rid, const char *buf, uint16_t len, uint8
 
 int request_handle(ctx_t *ctx, uint16_t rid) {
   log_debug("handling request %d", rid);
-  /*if (r->role != ROLE_RESPONDER) {
-    request_write(r, "We can't handle any role but RESPONDER.", 39, 0);
-    request_end(r, 1, PROTOST_UNKNOWN_ROLE);
-    return;
-  }*/
   
   // simulate latency
   //usleep(50000); // 50ms
@@ -248,13 +274,15 @@ int request_handle(ctx_t *ctx, uint16_t rid) {
 // fcgi proto parsing functions
 
 
-inline static int process_begin_request(ctx_t *ctx, uint16_t id, const begin_request_t *br) {
-  log_debug("begin request { id: %d, keepconn: %d, role: %d }", id,
+inline static int process_begin_request(ctx_t *ctx, uint16_t rid, const begin_request_t *br) {
+  log_debug("begin request { rid: %d, keepconn: %d, role: %d }", rid,
     (br->flags & FLAG_KEEP_CONN) == 1, (uint16_t)((br->roleB1 << 8) + br->roleB0) );
   
   ctx->keep_connection = (br->flags & FLAG_KEEP_CONN) ? 1 : 0;
   
   if ( (uint16_t)((br->roleB1 << 8) + br->roleB0) != ROLE_RESPONDER ) {
+    request_write(ctx, rid, "We can't handle any role but RESPONDER.", 39, TYPE_STDERR);
+    request_end(ctx, rid, 1, PROTOST_UNKNOWN_ROLE);
     PyErr_Format( PyExc_IOError, 
       "unknown FastCGI application role %d -- can only handle RESPONDER",
       (uint16_t)((br->roleB1 << 8) + br->roleB0) );
@@ -311,6 +339,7 @@ inline static int process_params(ctx_t *ctx, uint16_t rid, const byte *buf, uint
   if (len == 0) {
     buf_drain(ctx->buf, sizeof(header_t));
     return request_handle(ctx, rid);
+    //return 1;
   }
   
   request_t *r = request_get(ctx, rid);
@@ -387,6 +416,7 @@ inline static int process_stdin(ctx_t *ctx, uint16_t rid, const byte *buf, uint1
     log_debug("EOF in process_stdin for %d", rid);
     if (!ctx->keep_connection)
       ctx->should_disconnect = 1;
+    //return request_handle(ctx, rid);
     return 1;
   }
   
@@ -530,7 +560,8 @@ PyObject *fcgiev_process(PyObject *_null, PyObject *args, PyObject *kwargs) {
       //case TYPE_STDOUT:
       //case TYPE_STDERR:
       //case TYPE_DATA:
-      //case TYPE_GET_VALUES:
+      case TYPE_GET_VALUES:
+        fprintf(stderr, "received TYPE_GET_VALUES\n");
       //case TYPE_GET_VALUES_RESULT:
       //case TYPE_UNKNOWN:
       default:
